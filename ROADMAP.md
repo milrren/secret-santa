@@ -113,18 +113,21 @@ erDiagram
 - [x] Adicionar middleware Next.js para controle de sessão e proteção de rotas privadas.
 
 ### 🔹 Etapa 2: Criação de Sorteios com Código Cupom & Painel do Organizador
-- [ ] Implementar gerador de código único estilo cupom (ex: `SANTA-9K2F`).
-- [ ] Criar tela de criação de sorteio (`/dashboard/draws/new`): título, data do evento, valor sugerido e lista inicial de participantes.
-- [ ] Desenvolver painel do organizador (`/dashboard`):
+- [x] Implementar gerador de código único estilo cupom (ex: `SANTA-9K2F`).
+- [x] Criar tela de criação de sorteio (`/dashboard/draws/new`): título, data do evento, valor sugerido e lista inicial de participantes.
+- [x] Desenvolver painel do organizador (`/dashboard`):
   - Listagem dos sorteios criados pelo usuário.
   - Página de detalhes para edição antes do sorteio.
   - Botão de disparo do sorteio que aciona a lógica de Derangement e grava os pares no Supabase.
 
 ### 🔹 Etapa 3: Notificação por E-mail (Gmail SMTP via Nodemailer)
-- [ ] Instalar e configurar `nodemailer` e `@types/nodemailer`.
-- [ ] Implementar serviço de transporte com Gmail SMTP (`src/server/mail/transporter.ts`).
-- [ ] Criar template HTML responsivo e temático para o envio dos resultados.
-- [ ] Implementar rotina serverless de disparo em lotes com tolerância a falhas e atualização do campo `email_sent`.
+- [x] Instalar e configurar `nodemailer` e `@types/nodemailer`.
+- [x] Implementar cliente Supabase admin server-only (`src/lib/supabase/admin.ts`) para leitura/escrita dos `matches` bupassando RLS.
+- [x] Implementar serviço de transporte com Gmail SMTP (`src/server/mail/transporter.ts`).
+- [x] Criar template HTML responsivo e temático para o envio dos resultados (`src/server/mail/templates/draw-result-email.ts`).
+- [x] Implementar rotina serverless de disparo em lotes com tolerância a falhas e atualização do campo `email_sent` (`src/server/services/email-dispatch-service.ts`).
+- [x] Expor Server Action `dispatchDrawEmailsAction` com guards de sessão, ownership e env vars (`src/server/actions/email-actions.ts`).
+- [x] Atualizar UI: botão "Enviar E-mails", badges de status por participante (✅ Enviado / ⏳ Pendente) e aviso de env vars faltando.
 
 ### 🔹 Etapa 4: Consulta por Código & Painel do Participante
 - [ ] Criar rota pública/protegida `/draw/[code]`:

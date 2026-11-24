@@ -5,6 +5,8 @@ import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getSupabaseConfig } from "@/lib/supabase/config";
 import { ManageDrawClient } from "@/components/draws/manage-draw-client";
+import { isAdminConfigured, getAdminSupabase } from "@/lib/supabase/admin";
+import { isMailConfigured } from "@/server/mail/transporter";
 
 export const dynamic = "force-dynamic";
 
@@ -45,6 +47,28 @@ export default async function ManageDrawPage({ params }: ManageDrawPageProps) {
     .eq("draw_id", draw.id)
     .order("created_at", { ascending: true });
 
+  // Busca status de envio de e-mail por participante (via admin – bypassa RLS)
+  let matchEmailStatus: Record<string, boolean> = {};
+  if (draw.status === "drawn" && isAdminConfigured()) {
+    try {
+      const adminSupabase = getAdminSupabase();
+      const { data: matches } = await adminSupabase
+        .from("matches")
+        .select("giver_id, email_sent")
+        .eq("draw_id", draw.id);
+
+      if (matches) {
+        matchEmailStatus = Object.fromEntries(
+          matches.map((m) => [m.giver_id, m.email_sent])
+        );
+      }
+    } catch {
+      // Se o admin client falhar, apenas não exibimos os status
+    }
+  }
+
+  const isMailReady = isAdminConfigured() && isMailConfigured();
+
   return (
     <main className="max-w-5xl mx-auto px-4 py-10 sm:px-6 lg:px-8">
       <div className="mb-6">
@@ -57,7 +81,12 @@ export default async function ManageDrawPage({ params }: ManageDrawPageProps) {
         </Link>
       </div>
 
-      <ManageDrawClient draw={draw} participants={participants ?? []} />
+      <ManageDrawClient
+        draw={draw}
+        participants={participants ?? []}
+        matchEmailStatus={matchEmailStatus}
+        isMailReady={isMailReady}
+      />
     </main>
   );
 }

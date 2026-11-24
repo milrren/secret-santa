@@ -24,6 +24,15 @@ export function formatDateBR(isoDate: string | null | undefined): string {
   }).format(date);
 }
 
+export function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 export function toDatetimeLocalValue(isoDate: string | null | undefined): string {
   if (!isoDate) return "";
   const date = new Date(isoDate);

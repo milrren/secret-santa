@@ -10,17 +10,20 @@ import {
   removeParticipantAction,
   updateDrawAction,
 } from "@/server/actions/draw-management";
+import { dispatchDrawEmailsAction } from "@/server/actions/email-actions";
 import { formatCurrencyBRL, formatDateBR, toDatetimeLocalValue } from "@/lib/utils";
 import { CopyCodeButton } from "./copy-code-button";
 import { DrawStatusBadge } from "./draw-status-badge";
 import {
   AlertCircle,
+  AlertTriangle,
   CheckCircle2,
   Loader2,
   Lock,
   Mail,
   Plus,
   Save,
+  Send,
   ShieldCheck,
   Sparkles,
   Trash2,
@@ -30,14 +33,19 @@ import {
 interface ManageDrawClientProps {
   draw: DrawRow;
   participants: ParticipantRow[];
+  matchEmailStatus: Record<string, boolean>;
+  isMailReady: boolean;
 }
 
 export function ManageDrawClient({
   draw,
   participants,
+  matchEmailStatus,
+  isMailReady,
 }: ManageDrawClientProps) {
   const router = useRouter();
   const isDraft = draw.status === "draft";
+  const isDrawn = draw.status === "drawn";
 
   // Estado edição de evento
   const [title, setTitle] = useState(draw.title);
@@ -68,6 +76,13 @@ export function ManageDrawClient({
 
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [isDeleting, startDeleteTransition] = useTransition();
+
+  // Estado disparo de e-mails
+  const [isDispatching, startDispatchTransition] = useTransition();
+  const [dispatchMsg, setDispatchMsg] = useState<{
+    type: "success" | "error" | "partial";
+    text: string;
+  } | null>(null);
 
   const handleUpdateDraw = (e: React.FormEvent) => {
     e.preventDefault();
@@ -157,6 +172,38 @@ export function ManageDrawClient({
       }
     });
   };
+
+  const handleDispatchEmails = () => {
+    setDispatchMsg(null);
+    startDispatchTransition(async () => {
+      const res = await dispatchDrawEmailsAction(draw.id);
+      if (!res.success) {
+        setDispatchMsg({ type: "error", text: res.error });
+      } else {
+        const { sentCount, failedCount } = res;
+        if (sentCount === 0 && failedCount === 0) {
+          setDispatchMsg({
+            type: "success",
+            text: "Todos os e-mails já foram enviados anteriormente. Nada a reenviar.",
+          });
+        } else if (failedCount === 0) {
+          setDispatchMsg({
+            type: "success",
+            text: `${sentCount} e-mail${sentCount > 1 ? "s" : ""} enviado${sentCount > 1 ? "s" : ""} com sucesso! 🎉`,
+          });
+        } else {
+          setDispatchMsg({
+            type: "partial",
+            text: `${sentCount} enviado${sentCount > 1 ? "s" : ""}, ${failedCount} falhou${failedCount > 1 ? "ram" : ""}. Tente reenviar para corrigir as falhas.`,
+          });
+        }
+        router.refresh();
+      }
+    });
+  };
+
+  const sentCount = Object.values(matchEmailStatus).filter(Boolean).length;
+  const totalMatches = participants.length;
 
   return (
     <div className="space-y-8">
@@ -290,20 +337,83 @@ export function ManageDrawClient({
           )}
         </section>
       ) : (
-        <section className="bg-emerald-50/70 rounded-2xl border border-emerald-200 p-6 sm:p-8 flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="space-y-1.5">
-            <div className="inline-flex items-center gap-2 text-emerald-800 font-bold text-base">
-              <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-              <span>Sorteio Realizado com Sigilo!</span>
+        <section className="bg-emerald-50/70 rounded-2xl border border-emerald-200 p-6 sm:p-8 space-y-5">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="space-y-1.5">
+              <div className="inline-flex items-center gap-2 text-emerald-800 font-bold text-base">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                <span>Sorteio Realizado com Sigilo!</span>
+              </div>
+              <p className="text-sm text-emerald-800/80">
+                {drawSuccessMsg ||
+                  `Os pares entre os ${participants.length} participantes já foram gerados e protegidos no banco de dados.`}
+              </p>
+              {isDrawn && (
+                <p className="text-xs text-emerald-700/70">
+                  {sentCount}/{totalMatches} participante{totalMatches !== 1 ? "s" : ""} notificado{totalMatches !== 1 ? "s" : ""} por e-mail
+                </p>
+              )}
             </div>
-            <p className="text-sm text-emerald-800/80">
-              {drawSuccessMsg ||
-                `Os pares entre os ${participants.length} participantes já foram gerados e protegidos no banco de dados.`}
-            </p>
           </div>
-          <div className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-emerald-200 text-xs font-semibold text-slate-500 shrink-0">
-            <Mail className="w-4 h-4 text-emerald-600" />
-            <span>Disparo via Nodemailer (Etapa 3)</span>
+
+          {/* Seção de Notificações por E-mail */}
+          <div className="border-t border-emerald-200 pt-5 space-y-3">
+            <div className="flex items-center gap-2">
+              <Mail className="w-4 h-4 text-emerald-700" />
+              <h3 className="text-sm font-bold text-slate-800">Notificações por E-mail</h3>
+            </div>
+
+            {!isMailReady && (
+              <div className="flex items-start gap-2.5 p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs">
+                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-semibold">Configuração de e-mail incompleta</p>
+                  <p className="mt-0.5 text-amber-700">
+                    Adicione <code className="bg-amber-100 px-1 rounded">SUPABASE_SERVICE_ROLE_KEY</code>,{" "}
+                    <code className="bg-amber-100 px-1 rounded">GMAIL_USER</code> e{" "}
+                    <code className="bg-amber-100 px-1 rounded">GMAIL_APP_PASSWORD</code> ao seu <code className="bg-amber-100 px-1 rounded">.env.local</code> para habilitar o envio.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {dispatchMsg && (
+              <div
+                className={`p-3.5 rounded-xl border text-sm flex items-start gap-2 ${
+                  dispatchMsg.type === "success"
+                    ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+                    : dispatchMsg.type === "partial"
+                    ? "bg-amber-50 border-amber-200 text-amber-800"
+                    : "bg-red-50 border-red-200 text-red-700"
+                }`}
+              >
+                {dispatchMsg.type === "success" ? (
+                  <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+                ) : (
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                )}
+                <span>{dispatchMsg.text}</span>
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={handleDispatchEmails}
+              disabled={!isMailReady || isDispatching}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
+            >
+              {isDispatching ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Enviando e-mails...</span>
+                </>
+              ) : (
+                <>
+                  <Send className="w-4 h-4" />
+                  <span>Enviar E-mails</span>
+                </>
+              )}
+            </button>
           </div>
         </section>
       )}
@@ -390,17 +500,34 @@ export function ManageDrawClient({
                     <p className="text-xs text-slate-500 truncate">{p.email}</p>
                   </div>
 
-                  {isDraft && (
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveParticipant(p.id)}
-                      disabled={isPartPending}
-                      className="text-slate-400 hover:text-red-600 p-1.5 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
-                      title="Remover participante"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  )}
+                  <div className="flex items-center gap-2 shrink-0">
+                    {/* Badge de status de e-mail (apenas após o sorteio) */}
+                    {isDrawn && (
+                      matchEmailStatus[p.id] ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-medium">
+                          <CheckCircle2 className="w-3 h-3" />
+                          Enviado
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 border border-slate-200 text-slate-500 text-xs font-medium">
+                          <Mail className="w-3 h-3" />
+                          Pendente
+                        </span>
+                      )
+                    )}
+
+                    {isDraft && (
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveParticipant(p.id)}
+                        disabled={isPartPending}
+                        className="text-slate-400 hover:text-red-600 p-1.5 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+                        title="Remover participante"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
                 </li>
               ))}
             </ul>
