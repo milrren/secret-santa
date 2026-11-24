@@ -37,6 +37,13 @@ src/
 
 ---
 
+## 🧭 Roadmap do Produto
+
+O planejamento estratégico detalhado, as etapas de desenvolvimento e a modelagem do banco de dados (Supabase, Auth, Nodemailer, Wishlist) estão documentados no arquivo:
+👉 [ROADMAP.md](file:///Users/milrrenmattar/git/secret-santa/ROADMAP.md)
+
+---
+
 ## 🛠️ Começando
 
 ### Pré-requisitos
